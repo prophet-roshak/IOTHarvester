@@ -21,7 +21,7 @@ uint8_t remoteNodeAddress[5]	= {0xD2, 0xF0, 0xF0, 0xF0, 0xF0};
 uint8_t broadcast_address[5] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 */
 
-const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+uint8_t pipes[][6] = { {0xF0, 0xF0, 0xF0, 0xF0, 0xE1}, {0xF0, 0xF0, 0xF0, 0xF0, 0xD2} };
 
 typedef enum {HARV_RX, HARV_TX} HARV_MODE;
 HARV_MODE mode = HARV_TX;
@@ -165,7 +165,7 @@ void rolePongBackExecute(void)
 		while (!done)
 		{
 			// Fetch the payload, and see if this was the last one.
-			done = comm->read(&got_time, sizeof(unsigned long));
+			comm->read(&got_time, sizeof(unsigned long));
 			// Delay just a little bit to let the other unit make the transition to receiver
 			delay(20);
 		}

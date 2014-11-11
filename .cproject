@@ -26,6 +26,9 @@
 								<option id="gnu.c.compiler.option.include.paths.637577451" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="${DEVKIT_HOME}/devkit-x86/sysroots/i586-poky-linux/usr/include"/>
 								</option>
+								<option id="gnu.c.compiler.option.preprocessor.def.symbols.117092311" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="__intel_iot=1"/>
+								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.731790533" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.952091998" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler">
@@ -39,13 +42,15 @@
 									<listOptionValue builtIn="false" value="&quot;${DEVKIT_HOME}/devkit-x86/sysroots/i586-poky-linux/usr/include/c++/bits&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${DEVKIT_HOME}/devkit-x86/sysroots/i586-poky-linux/usr/include/mraa&quot;"/>
 								</option>
+								<option id="gnu.cpp.compiler.option.preprocessor.def.1300330828" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="__intel_iot=1"/>
+								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.237533275" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cross.c.linker.1726018804" name="Cross GCC Linker" superClass="cdt.managedbuild.tool.gnu.cross.c.linker"/>
 							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.linker.2020206044" name="Cross G++ Linker" superClass="cdt.managedbuild.tool.gnu.cross.cpp.linker">
 								<option id="gnu.cpp.link.option.flags.1573627538" name="Linker flags" superClass="gnu.cpp.link.option.flags" value="${LDFLAGS} -lmraa" valueType="string"/>
 								<option id="gnu.cpp.link.option.libs.2100099300" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs" valueType="libs">
-									<listOptionValue builtIn="false" value="upm-nrf24l01"/>
 									<listOptionValue builtIn="false" value="m"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.linker.input.207856235" superClass="cdt.managedbuild.tool.gnu.cpp.linker.input">
@@ -63,7 +68,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="nrf_receiver.cxx|nrf_transmitter.cxx|4_cpp_onboard_LED_blink.cpp" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="src"/>
+						<entry excluding="RF24-x|nrf_receiver.cxx|4_cpp_onboard_LED_blink.cpp|nrf_transmitter.cxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="src"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
