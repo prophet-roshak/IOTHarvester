@@ -14,6 +14,12 @@ int waiting = 0;
 RF24 *comm = NULL;
 mraa::Gpio *statusLed = NULL;
 
+struct SensorData {
+	float temp;
+	float humidity;
+	long vcc;
+};
+
 /*
 uint8_t harvAddress[5]			= {0xE1, 0xF0, 0xF0, 0xF0, 0xF0};
 uint8_t remoteNodeAddress[5]	= {0xD2, 0xF0, 0xF0, 0xF0, 0xF0};
@@ -24,7 +30,7 @@ uint8_t broadcast_address[5] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t pipes[][6] = { {0xF0, 0xF0, 0xF0, 0xF0, 0xE1}, {0xF0, 0xF0, 0xF0, 0xF0, 0xD2} };
 
 typedef enum {HARV_RX, HARV_TX} HARV_MODE;
-HARV_MODE mode = HARV_TX;
+HARV_MODE mode = HARV_RX;
 
 void
 sig_handler(int signo)
@@ -69,6 +75,7 @@ globalInit()
 
 	//! [Interesting]
 	comm = new RF24(7, 8);
+	comm->begin();
 
 	if (mode == HARV_TX)
 	{
@@ -83,6 +90,8 @@ globalInit()
 
 	// Start listening
 	comm->startListening();
+
+	comm->printDetails();
 
 
 	/*
@@ -160,21 +169,28 @@ void rolePongBackExecute(void)
 	if (comm->available())
 	{
 		// Dump the payloads until we've gotten everything
-		unsigned long got_time;
+		SensorData data;
 		bool done = false;
 		while (!done)
 		{
 			// Fetch the payload, and see if this was the last one.
-			comm->read(&got_time, sizeof(unsigned long));
+			comm->read(&data, sizeof(SensorData));
 			// Delay just a little bit to let the other unit make the transition to receiver
 			delay(20);
+
+			if (!comm->available())
+				done = true;
 		}
+
+		std::cout << "Recieved: T: " << data.temp;
+		std::cout << " H: " << data.humidity;
+		std::cout << " VCC: " << data.vcc << std::endl;
 
 		// First, stop listening so we can talk
 		comm->stopListening();
 
 		// Send the final one back.
-		comm->write(&got_time, sizeof(unsigned long));
+		//comm->write(&got_time, sizeof(unsigned long));
 		ledBlink(statusLed, 1, 200);
 
 		// Now, resume listening so we catch the next packets.
