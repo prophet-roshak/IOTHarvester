@@ -518,13 +518,14 @@ RF24::RF24(uint8_t _cepin, uint8_t _cspin):
 {
 }
 
-#if defined(RF24_INTEL_IOT)
 RF24::~RF24() {
+#if defined(RF24_INTEL_IOT)
 	mraa_gpio_close(m_csnPinCtx);
 	mraa_gpio_close(m_cePinCtx);
 	mraa_spi_stop(m_spi);
-}
 #endif
+}
+
 /****************************************************************************/
 
 #if defined (RF24_LINUX)//RPi constructor
