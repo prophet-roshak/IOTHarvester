@@ -8,8 +8,7 @@
 #include "RF24\RF24.h"
 #include "util\UtilTime.h"
 
-int running = 0;
-int waiting = 0;
+volatile int running = 0;
 
 RF24 *comm = NULL;
 mraa::Gpio *statusLed = NULL;
@@ -19,13 +18,6 @@ struct SensorData {
 	float humidity;
 	long vcc;
 };
-
-/*
-uint8_t harvAddress[5]			= {0xE1, 0xF0, 0xF0, 0xF0, 0xF0};
-uint8_t remoteNodeAddress[5]	= {0xD2, 0xF0, 0xF0, 0xF0, 0xF0};
-
-uint8_t broadcast_address[5] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-*/
 
 uint8_t pipes[][6] = { {0xF0, 0xF0, 0xF0, 0xF0, 0xE1}, {0xF0, 0xF0, 0xF0, 0xF0, 0xD2} };
 
@@ -54,19 +46,6 @@ ledBlink(mraa::Gpio* led, uint8_t iAmount, uint16_t iDelay)
 		delay(iDelay/2);
 	}
 }
-/*
-//! [Interesting]
-void
-nrf_handler () {
-	uint32_t recievedUs = 0;
-
-	memcpy (&recievedUs, comm->m_rxBuffer, sizeof (recievedUs));
-    std::cout << "Reciever :: roundtrip: " << (millis() - recievedUs) << "us" << std::endl;
-    waiting = 0;
-    ledBlink(statusLed, 1, 100);
-}
-//! [Interesting]
-*/
 
 void
 globalInit()
@@ -90,7 +69,6 @@ globalInit()
 
 	// Start listening
 	comm->startListening();
-
 	comm->printDetails();
 
 
@@ -211,7 +189,7 @@ main(int argc, char **argv)
 			rolePongBackExecute();
 	}
 
-	std::cout << "exiting application" << std::endl;
+	std::cout << "finalizing application" << std::endl;
 
 	delete comm;
 	//! [Interesting]
