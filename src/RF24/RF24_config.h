@@ -58,6 +58,7 @@
   //typedef uint16_t prog_uint16_t;
   #define PSTR(x) (x)
   #define printf_P printf
+  #define sprintf_P sprintf
   #define strlen_P strlen
   #define PROGMEM
   #define PRIPSTR "%s"
@@ -176,6 +177,23 @@
 
 #endif //Defined Linux 
 
+#if defined (SERIAL_DEBUG_MINIMAL)
+  #define IF_SERIAL_DEBUG_MINIMAL(x) ({x;})
+#else
+  #define IF_SERIAL_DEBUG_MINIMAL(x)
+#endif
+
+#if defined (SERIAL_DEBUG_FRAGMENTATION)
+  #define IF_SERIAL_DEBUG_FRAGMENTATION(x) ({x;})
+#else
+  #define IF_SERIAL_DEBUG_FRAGMENTATION(x)
+#endif
+
+#if defined (SERIAL_DEBUG_ROUTING)
+  #define IF_SERIAL_DEBUG_ROUTING(x) ({x;})
+#else
+  #define IF_SERIAL_DEBUG_ROUTING(x)
+#endif
 
 // ATTiny support code is from https://github.com/jscrane/RF24
 
