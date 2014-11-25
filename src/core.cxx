@@ -6,11 +6,16 @@
 #include <mraa.hpp>
 
 #include "RF24\RF24.h"
+#include "RF24\RF24Network.h"
 #include "util\UtilTime.h"
+
+#include "sensornet.hpp"
+uint16_t this_node;                                  // Our node address
 
 volatile int running = 0;
 
 RF24 *comm = NULL;
+RF24Network *network = NULL;
 mraa::Gpio *statusLed = NULL;
 
 struct SensorData {
@@ -19,11 +24,26 @@ struct SensorData {
 	long vcc;
 };
 
+const short max_active_nodes = 10;                    // Array of nodes we are aware of
+uint16_t active_nodes[max_active_nodes];
+short num_active_nodes = 0;
+short next_ping_node_index = 0;
+
+unsigned long awakeTime = 500;
+unsigned long sleepTime = 0;
+
+bool send_T(uint16_t to);                              // Prototypes for functions to send & handle messages
+bool send_N(uint16_t to);
+void handle_T(RF24NetworkHeader& header);
+void handle_N(RF24NetworkHeader& header);
+void add_node(uint16_t node);
+
+/*
 uint8_t pipes[][6] = { {0xF0, 0xF0, 0xF0, 0xF0, 0xE1}, {0xF0, 0xF0, 0xF0, 0xF0, 0xD2} };
 
 typedef enum {HARV_RX, HARV_TX} HARV_MODE;
 HARV_MODE mode = HARV_RX;
-
+*/
 void
 sig_handler(int signo)
 {
@@ -55,7 +75,9 @@ globalInit()
 	//! [Interesting]
 	comm = new RF24(7, 8);
 	comm->begin();
+	network = new RF24Network(*comm);
 
+	/*
 	if (mode == HARV_TX)
 	{
 		comm->openWritingPipe(pipes[0]);
@@ -67,8 +89,10 @@ globalInit()
 		comm->openReadingPipe(1, pipes[0]);
 	}
 
+
 	// Start listening
 	comm->startListening();
+	*/
 	comm->printDetails();
 
 
@@ -183,11 +207,40 @@ main(int argc, char **argv)
 
 	while (!running)
 	{
-		if (mode == HARV_TX)
+/*		if (mode == HARV_TX)
 			rolePingOutExecute();
 		else if (mode == HARV_RX)
-			rolePongBackExecute();
+			rolePongBackExecute();*/
+
+		network->update();
+
+		// do network part
+		while (network->available())
+		{
+			RF24NetworkHeader header; // If network available, take a look at it
+			network->peek(header);
+
+			switch (header.type) { // Dispatch the message to the correct handler.
+
+				case 'N':
+					handle_N(header);
+					break;
+
+					/************* SLEEP MODE *********/
+					// Note: A 'sleep' header has been defined, and should only need to be ignored if a node is routing traffic to itself
+					// The header is defined as:  RF24NetworkHeader sleepHeader(/*to node*/ 00, /*type*/ 'S' /*Sleep*/);
+				case 'S': /*This is a sleep payload, do nothing*/
+					break;
+
+				default:
+					printf_P(PSTR("*** WARNING *** Unknown message type %c\n\r"),
+							header.type);
+					network->read(header, 0, 0);
+					break;
+			};
+		}
 	}
+
 
 	std::cout << "finalizing application" << std::endl;
 
@@ -195,3 +248,48 @@ main(int argc, char **argv)
 	//! [Interesting]
 	return 0;
 }
+
+/**
+ * Send an 'N' message, the active node list
+ */
+bool send_N(uint16_t to)
+{
+  RF24NetworkHeader header(/*to node*/ to, /*type*/ 'N' /*Time*/);
+
+  printf_P(PSTR("---------------------------------\n\r"));
+  printf_P(PSTR("%lu: APP Sending active nodes to 0%o...\n\r"),millis(),to);
+  return network->write(header,active_nodes,sizeof(active_nodes));
+}
+
+/**
+ * Handle an 'N' message, the active node list
+ */
+void handle_N(RF24NetworkHeader& header)
+{
+  static uint16_t incoming_nodes[max_active_nodes];
+
+  network->read(header,&incoming_nodes,sizeof(incoming_nodes));
+  printf_P(PSTR("%lu: APP Received nodes from 0%o\n\r"),millis(),header.from_node);
+
+  int i = 0;
+  while ( i < max_active_nodes && incoming_nodes[i] > 00 )
+    add_node(incoming_nodes[i++]);
+}
+
+/**
+ * Add a particular node to the current list of active nodes
+ */
+void add_node(uint16_t node){
+
+  short i = num_active_nodes;                                    // Do we already know about this node?
+  while (i--)  {
+    if ( active_nodes[i] == node )
+        break;
+  }
+
+  if ( i == -1 && num_active_nodes < max_active_nodes ){         // If not, add it to the table
+      active_nodes[num_active_nodes++] = node;
+      printf_P(PSTR("%lu: APP Added 0%o to list of active nodes.\n\r"),millis(),node);
+  }
+}
+
