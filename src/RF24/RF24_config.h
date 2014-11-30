@@ -28,26 +28,28 @@
   #include <string.h>
   #include <sys/time.h>
   #include <stddef.h>
-#if !defined (__intel_iot)
 
-  #define RF24_LINUX
-  #include "RPi/bcm2835.h"
+	#if !defined (__intel_iot)
 
-#else
-  #define RF24_INTEL_IOT
+	  #define RF24_LINUX
+	  #include "RPi/bcm2835.h"
 
-  #define HIGH	1
-  #define LOW	0
+	#else
+	  #define RF24_INTEL_IOT
 
-  #include <iostream>
-  #include <unistd.h>
-  #include <stdlib.h>
+	  #define HIGH	1
+	  #define LOW	0
 
-  #include "..\util\UtilTime.h" // Arduino UTILTIME needs change to native time functions
+	  #include <iostream>
+	  #include <unistd.h>
+	  #include <stdlib.h>
 
-  #include <mraa/gpio.h>
-  #include <mraa/spi.h>
-#endif
+	  #include "..\util\UtilTime.h" // Arduino UTILTIME needs change to native time functions
+
+	  #include <mraa/gpio.h>
+	  #include <mraa/spi.h>
+	#endif
+
   // GCC a Arduino Missing
   #define max(a,b) (a>b?a:b)
   #define min(a,b) (a<b?a:b)

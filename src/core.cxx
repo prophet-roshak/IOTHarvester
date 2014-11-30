@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <signal.h>
+#include <time.h>
 
 #include <mraa.hpp>
 
@@ -32,9 +33,11 @@ short next_ping_node_index = 0;
 unsigned long awakeTime = 500;
 unsigned long sleepTime = 0;
 
-bool send_T(uint16_t to);                              // Prototypes for functions to send & handle messages
+bool send_D(uint16_t to);                              // Prototypes for functions to send & handle messages
+void handle_D(RF24NetworkHeader& header);
+void outputTimestamp(void);
+
 bool send_N(uint16_t to);
-void handle_T(RF24NetworkHeader& header);
 void handle_N(RF24NetworkHeader& header);
 void add_node(uint16_t node);
 
@@ -77,6 +80,8 @@ globalInit()
 	comm->begin();
 	network = new RF24Network(*comm);
 
+	this_node = node_address_set[NODE_ADDRESS];
+	network->begin(/*channel*/ 100, /*node address*/ this_node );
 	/*
 	if (mode == HARV_TX)
 	{
@@ -226,6 +231,10 @@ main(int argc, char **argv)
 					handle_N(header);
 					break;
 
+				case 'D':
+					handle_D(header);
+					break;
+
 					/************* SLEEP MODE *********/
 					// Note: A 'sleep' header has been defined, and should only need to be ignored if a node is routing traffic to itself
 					// The header is defined as:  RF24NetworkHeader sleepHeader(/*to node*/ 00, /*type*/ 'S' /*Sleep*/);
@@ -247,6 +256,50 @@ main(int argc, char **argv)
 	delete comm;
 	//! [Interesting]
 	return 0;
+}
+
+/**
+ * Send an 'N' message, the active node list
+ */
+bool send_D(uint16_t to)
+{
+  RF24NetworkHeader header(/*to node*/ to, /*type*/ 'N' /*Time*/);
+
+  printf_P(PSTR("---------------------------------\n\r"));
+  printf_P(PSTR("%lu: APP Sending active nodes to 0%o...\n\r"),millis(),to);
+  return network->write(header,active_nodes,sizeof(active_nodes));
+}
+
+/**
+ * Handle an 'N' message, the active node list
+ */
+void handle_D(RF24NetworkHeader& header)
+{
+	static SensorData data;
+	network->read(header,&data,sizeof(SensorData));
+
+	// get timestamp
+	outputTimestamp();
+
+	// Output data
+	std::cout << " T: " << data.temp;
+	std::cout << " H: " << data.humidity;
+	std::cout << " VCC: " << data.vcc << std::endl;
+
+	ledBlink(statusLed, 1, 200);
+}
+
+void outputTimestamp(void)
+{
+	time_t rawtime;
+	struct tm * timeinfo;
+	char buffer [80];
+
+	time (&rawtime);
+	timeinfo = localtime (&rawtime);
+
+	strftime (buffer,80,"%c",timeinfo);
+	std::cout << buffer << ":";
 }
 
 /**

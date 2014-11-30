@@ -22,7 +22,7 @@ const uint16_t node_address_set[10] = { 00, 02, 05, 012, 015, 022, 025, 032, 035
 // 7   (032)     = Child of (02)
 // 8,9 (035,045) = Children of (05)
 
-uint8_t NODE_ADDRESS = 1; // Use numbers 0 through 9 to select an address from the array
+uint8_t NODE_ADDRESS = 0; // Use numbers 0 through 9 to select an address from the array
 
 
 
