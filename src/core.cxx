@@ -242,14 +242,21 @@ main(int argc, char **argv)
 					break;
 
 				default:
-					printf_P(PSTR("*** WARNING *** Unknown message type %c\n\r"),
+					printf("*** WARNING *** Unknown message type %c\n\r",
 							header.type);
 					network->read(header, 0, 0);
 					break;
 			};
-		}
-	}
+		};
 
+		/*
+		if (millis() - sleepTime > awakeTime)
+		{
+			sleepTime = millis();
+			send_N(02);
+		}
+		*/
+	}
 
 	std::cout << "finalizing application" << std::endl;
 
@@ -287,6 +294,9 @@ void handle_D(RF24NetworkHeader& header)
 	std::cout << " VCC: " << data.vcc << std::endl;
 
 	ledBlink(statusLed, 1, 200);
+
+	if ( header.from_node != this_node || header.from_node > 00 ) // If this message is from ourselves or the base, don't bother adding it to the active nodes.
+		add_node(header.from_node);
 }
 
 void outputTimestamp(void)
@@ -309,8 +319,8 @@ bool send_N(uint16_t to)
 {
   RF24NetworkHeader header(/*to node*/ to, /*type*/ 'N' /*Time*/);
 
-  printf_P(PSTR("---------------------------------\n\r"));
-  printf_P(PSTR("%lu: APP Sending active nodes to 0%o...\n\r"),millis(),to);
+  std::cout << "---------------------------------" << std::endl;
+  std::cout << millis() << ": APP Sending active nodes to 0" << to << "..." << std::endl;
   return network->write(header,active_nodes,sizeof(active_nodes));
 }
 
@@ -322,7 +332,7 @@ void handle_N(RF24NetworkHeader& header)
   static uint16_t incoming_nodes[max_active_nodes];
 
   network->read(header,&incoming_nodes,sizeof(incoming_nodes));
-  printf_P(PSTR("%lu: APP Received nodes from 0%o\n\r"),millis(),header.from_node);
+  printf("%lu: APP Received nodes from 0%o\n\r",millis(),header.from_node);
 
   int i = 0;
   while ( i < max_active_nodes && incoming_nodes[i] > 00 )
@@ -342,7 +352,7 @@ void add_node(uint16_t node){
 
   if ( i == -1 && num_active_nodes < max_active_nodes ){         // If not, add it to the table
       active_nodes[num_active_nodes++] = node;
-      printf_P(PSTR("%lu: APP Added 0%o to list of active nodes.\n\r"),millis(),node);
+      printf("%lu: APP Added 0%o to list of active nodes.\n\r",millis(),node);
   }
 }
 
