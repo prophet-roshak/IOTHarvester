@@ -10,43 +10,16 @@
 #include "RF24\RF24Network.h"
 #include "util\UtilTime.h"
 
-#include "sensornet.hpp"
-uint16_t this_node;                                  // Our node address
-
 volatile int running = 0;
 
 RF24 *comm = NULL;
-RF24Network *network = NULL;
 mraa::Gpio *statusLed = NULL;
 
-struct SensorData {
-	float temp;
-	float humidity;
-	long vcc;
-};
+const uint8_t pipes[][6] = { {0xF0, 0xF0, 0xF0, 0xF0, 0xE1}, {0xF0, 0xF0, 0xF0, 0xF0, 0xD2} };
 
-const short max_active_nodes = 10;                    // Array of nodes we are aware of
-uint16_t active_nodes[max_active_nodes];
-short num_active_nodes = 0;
-short next_ping_node_index = 0;
+enum HARV_MODE {HARV_RX, HARV_TX};
+HARV_MODE mode = HARV_TX;
 
-unsigned long awakeTime = 500;
-unsigned long sleepTime = 0;
-
-bool send_D(uint16_t to);                              // Prototypes for functions to send & handle messages
-void handle_D(RF24NetworkHeader& header);
-void outputTimestamp(void);
-
-bool send_N(uint16_t to);
-void handle_N(RF24NetworkHeader& header);
-void add_node(uint16_t node);
-
-/*
-uint8_t pipes[][6] = { {0xF0, 0xF0, 0xF0, 0xF0, 0xE1}, {0xF0, 0xF0, 0xF0, 0xF0, 0xD2} };
-
-typedef enum {HARV_RX, HARV_TX} HARV_MODE;
-HARV_MODE mode = HARV_RX;
-*/
 void
 sig_handler(int signo)
 {
@@ -75,14 +48,22 @@ globalInit()
 {
 	timeInit();
 
-	//! [Interesting]
 	comm = new RF24(7, 8);
 	comm->begin();
-	network = new RF24Network(*comm);
+	comm->stopListening();
+	comm->setPALevel(RF24_PA_HIGH);
 
-	this_node = node_address_set[NODE_ADDRESS];
-	network->begin(/*channel*/ 100, /*node address*/ this_node );
-	/*
+	signal(SIGINT, sig_handler);
+
+	statusLed = new mraa::Gpio(3, true, true);
+	statusLed->dir(mraa::DIR_OUT);
+}
+
+void pingPongInit(HARV_MODE mode)
+{
+	//comm->enableDynamicAck(); // [! if you uncomment this line, my devices will not clean TX_FIFO, like AUTOACK is disabled]
+	comm->enableDynamicPayloads();
+
 	if (mode == HARV_TX)
 	{
 		comm->openWritingPipe(pipes[0]);
@@ -94,54 +75,37 @@ globalInit()
 		comm->openReadingPipe(1, pipes[0]);
 	}
 
+	comm->printDetails();
 
 	// Start listening
 	comm->startListening();
-	*/
-	comm->printDetails();
-
-
-	/*
-	comm->setPayload (MAX_BUFFER);
-	comm->setSpeedRate (upm::NRF_1MBPS);
-	comm->setChannel (76);
-
-	comm->setSourceAddress ((uint8_t *) harvAddress);
-	comm->setDestinationAddress ((uint8_t *) remoteNodeAddress);
-	comm->setBroadcastAddress ((uint8_t *) remoteNodeAddress);
-
-	// radio is basically in receive mode
-	comm->dataRecievedHandler = nrf_handler;
-	comm->configure ();
-	*/
-
-	signal(SIGINT, sig_handler);
-
-	statusLed = new mraa::Gpio(3, true, true);
-	statusLed->dir(mraa::DIR_OUT);
 }
+
 
 void rolePingOutExecute(void)
 {
+	unsigned long time = millis();
+	std::cout << "pinging... [" << time << "]";
+
 	// First, stop listening so we can talk.
 	comm->stopListening();
 
 	// Take the time, and send it.  This will block until complete
-	unsigned long time = millis();
-	std::cout << "pinging... [" << time << "]";
-	bool ok = comm->write(&time, sizeof(unsigned long));
-
+	bool ok = comm->writeFast(&time, sizeof(unsigned long));
 	if (ok)
-	{
-		std::cout << " ok." << std::endl;
-	}
-	else
-	{
-		std::cout << " failed." << std::endl;
-	}
+		ok = comm->txStandBy(30);
 
 	// Now, continue listening
 	comm->startListening();
+
+	if (ok)
+	{
+		std::cout << " ok: " << millis() << std::endl;
+	}
+	else
+	{
+		std::cout << " failed: " << millis() << std::endl;
+	}
 
 	// Wait here until we get a response, or timeout (500ms)
 	unsigned long started_waiting_at = millis();
@@ -153,9 +117,7 @@ void rolePingOutExecute(void)
 	// Describe the results
 	if (timeout)
 	{
-		std::cout << " timed out ..." << std::endl;
-		// Timed out, blink error
-		ledBlink(statusLed, 5, 200);
+		std::cout << millis() << ": timed out ..." << std::endl;
 	}
 	else
 	{
@@ -176,183 +138,58 @@ void rolePongBackExecute(void)
 	if (comm->available())
 	{
 		// Dump the payloads until we've gotten everything
-		SensorData data;
+		unsigned long got_time;
+
 		bool done = false;
 		while (!done)
 		{
 			// Fetch the payload, and see if this was the last one.
-			comm->read(&data, sizeof(SensorData));
-			// Delay just a little bit to let the other unit make the transition to receiver
-			delay(20);
-
+			comm->read(&got_time, sizeof(unsigned long));
 			if (!comm->available())
 				done = true;
 		}
 
-		std::cout << "Recieved: T: " << data.temp;
-		std::cout << " H: " << data.humidity;
-		std::cout << " VCC: " << data.vcc << std::endl;
+		std::cout << millis() << ": APP got time " << got_time << std::endl;
+
+		// Delay just a little bit to let the other unit make the transition to receiver
+		delay(20);
 
 		// First, stop listening so we can talk
 		comm->stopListening();
 
 		// Send the final one back.
-		//comm->write(&got_time, sizeof(unsigned long));
-		ledBlink(statusLed, 1, 200);
+		bool ok = comm->writeFast(&got_time, sizeof(unsigned long));
+		if (ok)
+			ok = comm->txStandBy(30);
 
 		// Now, resume listening so we catch the next packets.
 		comm->startListening();
+
+		if (ok)
+			ledBlink(statusLed, 1, 200);
 	}
 }
 
 int
 main(int argc, char **argv)
 {
+	// Init time module, GPIOs, RF24
 	globalInit();
+
+	pingPongInit(mode);
 
 	while (!running)
 	{
-/*		if (mode == HARV_TX)
+		if (mode == HARV_TX)
 			rolePingOutExecute();
 		else if (mode == HARV_RX)
-			rolePongBackExecute();*/
-
-		network->update();
-
-		// do network part
-		while (network->available())
-		{
-			RF24NetworkHeader header; // If network available, take a look at it
-			network->peek(header);
-
-			switch (header.type) { // Dispatch the message to the correct handler.
-
-				case 'N':
-					handle_N(header);
-					break;
-
-				case 'D':
-					handle_D(header);
-					break;
-
-					/************* SLEEP MODE *********/
-					// Note: A 'sleep' header has been defined, and should only need to be ignored if a node is routing traffic to itself
-					// The header is defined as:  RF24NetworkHeader sleepHeader(/*to node*/ 00, /*type*/ 'S' /*Sleep*/);
-				case 'S': /*This is a sleep payload, do nothing*/
-					break;
-
-				default:
-					printf("*** WARNING *** Unknown message type %c\n\r",
-							header.type);
-					network->read(header, 0, 0);
-					break;
-			};
-		};
-
-		/*
-		if (millis() - sleepTime > awakeTime)
-		{
-			sleepTime = millis();
-			send_N(02);
-		}
-		*/
+			rolePongBackExecute();
 	}
 
 	std::cout << "finalizing application" << std::endl;
 
 	delete comm;
-	//! [Interesting]
+
 	return 0;
-}
-
-/**
- * Send an 'N' message, the active node list
- */
-bool send_D(uint16_t to)
-{
-  RF24NetworkHeader header(/*to node*/ to, /*type*/ 'N' /*Time*/);
-
-  printf_P(PSTR("---------------------------------\n\r"));
-  printf_P(PSTR("%lu: APP Sending active nodes to 0%o...\n\r"),millis(),to);
-  return network->write(header,active_nodes,sizeof(active_nodes));
-}
-
-/**
- * Handle an 'N' message, the active node list
- */
-void handle_D(RF24NetworkHeader& header)
-{
-	static SensorData data;
-	network->read(header,&data,sizeof(SensorData));
-
-	// get timestamp
-	outputTimestamp();
-
-	// Output data
-	std::cout << " T: " << data.temp;
-	std::cout << " H: " << data.humidity;
-	std::cout << " VCC: " << data.vcc << std::endl;
-
-	ledBlink(statusLed, 1, 200);
-
-	if ( header.from_node != this_node || header.from_node > 00 ) // If this message is from ourselves or the base, don't bother adding it to the active nodes.
-		add_node(header.from_node);
-}
-
-void outputTimestamp(void)
-{
-	time_t rawtime;
-	struct tm * timeinfo;
-	char buffer [80];
-
-	time (&rawtime);
-	timeinfo = localtime (&rawtime);
-
-	strftime (buffer,80,"%c",timeinfo);
-	std::cout << buffer << ":";
-}
-
-/**
- * Send an 'N' message, the active node list
- */
-bool send_N(uint16_t to)
-{
-  RF24NetworkHeader header(/*to node*/ to, /*type*/ 'N' /*Time*/);
-
-  std::cout << "---------------------------------" << std::endl;
-  std::cout << millis() << ": APP Sending active nodes to 0" << to << "..." << std::endl;
-  return network->write(header,active_nodes,sizeof(active_nodes));
-}
-
-/**
- * Handle an 'N' message, the active node list
- */
-void handle_N(RF24NetworkHeader& header)
-{
-  static uint16_t incoming_nodes[max_active_nodes];
-
-  network->read(header,&incoming_nodes,sizeof(incoming_nodes));
-  printf("%lu: APP Received nodes from 0%o\n\r",millis(),header.from_node);
-
-  int i = 0;
-  while ( i < max_active_nodes && incoming_nodes[i] > 00 )
-    add_node(incoming_nodes[i++]);
-}
-
-/**
- * Add a particular node to the current list of active nodes
- */
-void add_node(uint16_t node){
-
-  short i = num_active_nodes;                                    // Do we already know about this node?
-  while (i--)  {
-    if ( active_nodes[i] == node )
-        break;
-  }
-
-  if ( i == -1 && num_active_nodes < max_active_nodes ){         // If not, add it to the table
-      active_nodes[num_active_nodes++] = node;
-      printf("%lu: APP Added 0%o to list of active nodes.\n\r",millis(),node);
-  }
 }
 

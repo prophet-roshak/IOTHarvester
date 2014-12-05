@@ -37,6 +37,7 @@ void RF24::csn(bool mode)
 #elif defined (RF24_INTEL_IOT)
 
 	mraa_gpio_write(m_csnPinCtx, mode);
+	//IF_SERIAL_DEBUG(printf_P(PSTR("%lu: ce(%01x)\r\n"),millis(),mode));
 
 #elif defined (RF24_TINY)
 	if (ce_pin != csn_pin) {
@@ -66,6 +67,7 @@ void RF24::ce(bool level)
   bcm2835_gpio_write(ce_pin, level);
   #elif defined (RF24_INTEL_IOT)
   mraa_gpio_write(m_cePinCtx, level);
+  // IF_SERIAL_DEBUG(printf_P(PSTR("%lu: ce(%01x)\r\n"),millis(),level));
   #else
   //Allow for 3-pin use on ATTiny
   if (ce_pin != csn_pin) digitalWrite(ce_pin,level);
@@ -158,6 +160,7 @@ uint8_t RF24::read_register(uint8_t reg)
   csn(HIGH);
   #endif
 
+  IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW read_register (0x%02x,0x%02x)\n\r"), millis(), reg, result));
   return result;
 }
 
@@ -214,7 +217,7 @@ uint8_t RF24::write_register(uint8_t reg, uint8_t value)
 {
   uint8_t status;
 
-  IF_SERIAL_DEBUG(printf_P(PSTR("write_register(%02x,%02x)\r\n"),reg,value));
+  IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW write_register(0x%02x,0x%02x)\r\n"),millis(), reg, value));
 
   #if defined (RF24_LINUX)
 	uint8_t * prx = spi_rxbuff;
@@ -257,7 +260,7 @@ uint8_t RF24::write_payload(const void* buf, uint8_t data_len, const uint8_t wri
    uint8_t blank_len = dynamic_payloads_enabled ? 0 : payload_size - data_len;
   
   //printf("[Writing %u bytes %u blanks]",data_len,blank_len);
-  IF_SERIAL_DEBUG( printf("[Writing %u bytes %u blanks]\n",data_len,blank_len); );
+  IF_SERIAL_DEBUG( printf("%lu: HW [Writing %u bytes %u blanks]\n",millis(),data_len,blank_len); );
   
  #if defined (RF24_LINUX)
 	uint8_t * prx = spi_rxbuff;
@@ -294,6 +297,7 @@ uint8_t RF24::write_payload(const void* buf, uint8_t data_len, const uint8_t wri
     _SPI.transfer(csn_pin,*current);
   }
   #elif defined (RF24_INTEL_IOT)
+  	IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW Writing playload using 0x%02x\n\r"), millis(), writeType));
 	csn(LOW);
 	status = mraa_spi_write(m_spi, writeType);
 	while (data_len--)
@@ -331,7 +335,7 @@ uint8_t RF24::read_payload(void* buf, uint8_t data_len)
   
   //printf("[Reading %u bytes %u blanks]",data_len,blank_len);
 
-  IF_SERIAL_DEBUG( printf("[Reading %u bytes %u blanks]\n",data_len,blank_len); );
+  IF_SERIAL_DEBUG( printf("%lu: HW [Reading %u bytes %u blanks]\n",millis(),data_len,blank_len); );
   
   #if defined (RF24_LINUX)
 	uint8_t * prx = spi_rxbuff;
@@ -826,6 +830,7 @@ void RF24::startListening(void)
 	flush_tx();
   }
 
+  IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW Start Listening\n\r"),millis()));
   // Go!
   ce(HIGH);
   delayMicroseconds(130);
@@ -864,6 +869,7 @@ void RF24::stopListening(void)
   #endif
   write_register(EN_RXADDR,read_register(EN_RXADDR) | _BV(pgm_read_byte(&child_pipe_enable[0]))); // Enable RX on pipe0
   
+  IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW Stop Listening\n\r"),millis()));
   //delayMicroseconds(100);
 
 }
@@ -898,7 +904,7 @@ void RF24::powerUp(void)
 /******************************************************************/
 #if defined (FAILURE_HANDLING)
 void RF24::errNotify(){
-	IF_SERIAL_DEBUG(printf_P(PSTR("HARDWARE FAIL\r\n")));
+	IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HARDWARE FAIL\r\n"), millis()));
 	failureDetected = 1;
 }
 #endif
@@ -976,6 +982,7 @@ bool RF24::writeBlocking( const void* buf, uint8_t len, uint32_t timeout )
 /****************************************************************************/
 
 void RF24::reUseTX(){
+		IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW Reuse TX\n\r"), millis()));
 		write_register(STATUS,_BV(MAX_RT) );			  //Clear max retry flag
 		spiTrans( REUSE_TX_PL );
 		ce(LOW);										  //Re-Transfer packet
@@ -1029,10 +1036,13 @@ bool RF24::writeFast( const void* buf, uint8_t len ){
 
 void RF24::startFastWrite( const void* buf, uint8_t len, const bool multicast){ //TMRh20
 
+	IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW startFastWrite\n\r"), millis()));
 	//write_payload( buf,len);
 	write_payload( buf, len,multicast ? W_TX_PAYLOAD_NO_ACK : W_TX_PAYLOAD ) ;
 	ce(HIGH);
-
+#ifdef RF24_INTEL_IOT
+	ce(LOW);
+#endif
 }
 
 /****************************************************************************/
@@ -1042,6 +1052,7 @@ void RF24::startFastWrite( const void* buf, uint8_t len, const bool multicast){ 
 void RF24::startWrite( const void* buf, uint8_t len, const bool multicast ){
 
   // Send the payload
+	IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW startWrite\n\r"), millis()));
 
   //write_payload( buf, len );
   write_payload( buf, len,multicast? W_TX_PAYLOAD_NO_ACK : W_TX_PAYLOAD ) ;
@@ -1088,6 +1099,7 @@ bool RF24::txStandBy(){
 
 bool RF24::txStandBy(uint32_t timeout){
 
+	IF_SERIAL_DEBUG(printf_P(PSTR("%lu: HW txStandBy\r\n"), millis()));
 	uint32_t start = millis();
 
 	while( ! (read_register(FIFO_STATUS) & _BV(TX_EMPTY)) ){
